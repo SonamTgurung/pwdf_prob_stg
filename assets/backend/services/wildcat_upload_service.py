@@ -68,10 +68,17 @@ def upload_custom_perimeter(
     # fire_date drives the pre/post-fire dNBR windows in data prep, so reject
     # an unparseable one here rather than failing later in Prepare.
     try:
-        _prep._parse_fire_date(fire_date)
+        parsed_date = _prep._parse_fire_date(fire_date)
     except ValueError:
         raise ValueError(
             f"Invalid fire date '{fire_date}'. Use YYYY-MM-DD, e.g. 2018-11-08."
+        )
+    # The frontend pre-fills <current year>-07-01, so a user who changes only
+    # the Year field would otherwise get the wrong year's Landsat scenes.
+    if parsed_date.year != int(year):
+        raise ValueError(
+            f"Fire date {fire_date} is not in the fire year {year}. "
+            "Set the fire date to the actual ignition date."
         )
 
     suffix = Path(filename).suffix.lower()
