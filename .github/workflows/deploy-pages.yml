@@ -43,7 +43,7 @@ jobs:
         env:
           BACKEND_URL: ${{ vars.BACKEND_URL_OVERRIDE || 'https://wildcat-mhri-backend-600531524448.us-west1.run.app/api/v1' }}
         run: |
-          flutter build web --release --base-href /pwdf_prob/ --dart-define=BACKEND_URL="$BACKEND_URL"
+          flutter build web --release --base-href /pwdf_prob_stg/ --dart-define=BACKEND_URL="$BACKEND_URL"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
