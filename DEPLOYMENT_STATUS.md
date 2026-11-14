@@ -39,6 +39,11 @@ variable involved anymore. **If the Cloud Run service URL ever changes,
 update it in `.github/workflows/deploy-pages.yml`, not in a GitHub
 Settings variable.**
 
+The URL is still hardcoded in the workflow by default. An optional repo
+variable `BACKEND_URL_OVERRIDE` (unset = Cloud Run URL) exists for pointing the
+site at another backend, e.g. a Hugging Face Space (see
+`assets/backend/README.md`). Never reuse the name `BACKEND_URL`.
+
 **To deploy a frontend change:** just push to `main`. Don't push to
 `gh-pages` — it won't do anything and will confuse the next person (or
 session) investigating a "why isn't my change live" issue.

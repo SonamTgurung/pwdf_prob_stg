@@ -1,10 +1,11 @@
 FROM python:3.11-slim
 
+# NUMBA_CACHE_DIR: numba (via pysheds) caches compiled code next to
+# site-packages, which a non-root user (Hugging Face Spaces runs as uid 1000)
+# can't write to.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    # numba (via pysheds) caches compiled code next to site-packages, which a
-    # non-root user (Hugging Face Spaces runs as uid 1000) can't write to.
     NUMBA_CACHE_DIR=/tmp/numba_cache
 
 WORKDIR /app

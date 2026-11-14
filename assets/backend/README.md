@@ -1,5 +1,8 @@
 # Backend data provider
 
+For running without Google Cloud billing, see the free data provider (this
+section) and Hugging Face hosting (last section).
+
 The prepare step (`POST /api/v1/wildcat/fires/{fire_id}/prepare`) downloads the
 3DEP 10 m DEM, the Landsat dNBR and the JRC water mask from one of two sources,
 chosen with the `DATA_PROVIDER` environment variable:
@@ -38,12 +41,18 @@ deploy in `DEPLOYMENT_STATUS.md` changes. `deploy/huggingface/` holds the Space
 card (`README.md`, with `sdk: docker` and `app_port: 8080`, the Dockerfile's
 default port) and a script that uploads only the files the image needs.
 
+**The Space is public, and so are ALL uploaded files:** the backend code, the
+vendored `assets/wildcat` and `assets/asbpa_data`. Check that you are allowed to
+publish them before running the script. A private Space can't be used, because
+the website can't call it.
+
 1. Create a free account at https://huggingface.co and a token with write
    access (Settings > Access Tokens).
 2. `pip install -U huggingface_hub`, then `hf auth login`.
-3. From the repo root: `deploy/huggingface/deploy.sh <hf-user>/<space-name>`
-   (creates the Space if needed and uploads; needs `rsync`). The first build
-   takes several minutes.
+3. From the repo root: `python deploy/huggingface/deploy.py <hf-user>/<space-name>`
+   (works on Windows too; creates the Space if needed and uploads). Only files committed
+   to git are uploaded; `--dry-run` stages them without uploading. The first
+   build takes several minutes.
 4. In the Space, Settings > Variables and secrets, add:
    - `EXTRA_CORS_ORIGINS`: the exact origin of any frontend that isn't
      `https://subashpoudel1999.github.io`, e.g. `https://<user>.github.io`
@@ -57,7 +66,7 @@ default port) and a script that uploads only the files the image needs.
 5. Check `https://<hf-user>-<space-name>.hf.space/health` and
    `/api/v1/gee/status` (should report `planetary`).
 6. Point the site at it: in the GitHub repo, Settings > Secrets and variables >
-   Actions > Variables, add `BACKEND_URL` =
+   Actions > Variables, add `BACKEND_URL_OVERRIDE` =
    `https://<hf-user>-<space-name>.hf.space/api/v1`, then re-run the "Deploy
    Flutter web to GitHub Pages" workflow. With the variable unset the workflow
    uses the Cloud Run URL as before.
@@ -68,7 +77,7 @@ Limitations:
   whenever the Space restarts or rebuilds; treat it as a cache and re-run
   prepare/analyze. Job status is in memory on one process, as on Cloud Run.
 - Free Spaces sleep after about 48 hours without traffic; the next request
-  waits for the container to wake (typically about a minute). They can also be
+  wakes in a minute or more. They can also be
   restarted at any time.
 - The free CPU tier is 2 vCPU and 16 GB RAM (check HF's current docs). The
   prepare step holds one float32 stack of Landsat scenes per band (about
