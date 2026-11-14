@@ -1,7 +1,7 @@
 # Backend data provider
 
 For running without Google Cloud billing, see the free data provider (this
-section) and Hugging Face hosting (last section).
+section). Hugging Face hosting (last section) now needs a paid PRO account.
 
 The prepare step (`POST /api/v1/wildcat/fires/{fire_id}/prepare`) downloads the
 3DEP 10 m DEM, the Landsat dNBR and the JRC water mask from one of two sources,
@@ -34,7 +34,12 @@ Notes:
 - Planetary mode needs outbound HTTPS to `planetarycomputer.microsoft.com`,
   `*.blob.core.windows.net`, `prd-tnm.s3.amazonaws.com` and `apps.fs.usda.gov`.
 
-# Free hosting on a Hugging Face Space (no credit card)
+# Hosting on a Hugging Face Space
+
+> **Note (Nov 2026): on hold.** Hugging Face now requires a PRO subscription
+> (about $9/month) for Docker Spaces; only static Spaces are free. Creating the
+> Space fails with "402 Payment Required" on a free account. The steps below
+> still work with PRO, but this is no longer a free option.
 
 The same root `Dockerfile` runs on a Docker Space; nothing about the Cloud Run
 deploy in `DEPLOYMENT_STATUS.md` changes. `deploy/huggingface/` holds the Space
