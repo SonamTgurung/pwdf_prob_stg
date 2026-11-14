@@ -32,13 +32,16 @@ jobs:
         run: flutter pub get
 
       - name: Build web app
-        # Backend URL is hardcoded (not a secret -- it ends up embedded in
-        # public client-side JS regardless) so the deploy is fully
-        # reproducible from the repo alone, with no GitHub Actions
-        # variable/secret to go stale. Update this if the Cloud Run
-        # service is ever redeployed under a different URL.
+        # Backend URL: set the repo variable BACKEND_URL (Settings > Secrets
+        # and variables > Actions > Variables) to point the site at another
+        # backend, e.g. a Hugging Face Space. Not a secret -- it ends up in
+        # public client-side JS regardless. When unset, falls back to the
+        # Cloud Run URL below; update that if the service is ever redeployed
+        # under a different URL.
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://wildcat-mhri-backend-600531524448.us-west1.run.app/api/v1' }}
         run: |
-          flutter build web --release --base-href /pwdf_prob/ --dart-define=BACKEND_URL=https://wildcat-mhri-backend-600531524448.us-west1.run.app/api/v1
+          flutter build web --release --base-href /pwdf_prob/ --dart-define=BACKEND_URL="$BACKEND_URL"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

@@ -2,7 +2,10 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    # numba (via pysheds) caches compiled code next to site-packages, which a
+    # non-root user (Hugging Face Spaces runs as uid 1000) can't write to.
+    NUMBA_CACHE_DIR=/tmp/numba_cache
 
 WORKDIR /app
 
@@ -16,6 +19,9 @@ RUN apt-get update \
 
 COPY assets/backend/requirements.txt /app/assets/backend/requirements.txt
 COPY assets/wildcat /app/assets/wildcat
+# Hugging Face Spaces runs the container as uid 1000, not root; Wildcat's
+# default data dir (used when FIRE_DATA_DIR is unset) must be writable there.
+RUN chmod -R a+rwX /app/assets/wildcat
 
 WORKDIR /app/assets/backend
 RUN pip install -r requirements.txt
