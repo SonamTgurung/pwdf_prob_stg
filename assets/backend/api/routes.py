@@ -107,10 +107,19 @@ def start_wildcat_fire_prep(fire_id: str, request: WildcatPrepRequest | None = N
 
 @router.get("/gee/status")
 def get_gee_status():
-    """Verify that the backend can authenticate to Earth Engine."""
-    import services.gee_service as _gee
-
-    status = _gee.test_connection()
+    """Verify that the backend can reach its data provider (Earth Engine or
+    Planetary Computer — see DATA_PROVIDER). Path kept for compatibility."""
+    try:
+        provider = _fp.get_data_provider()
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if provider == "planetary":
+        import services.planetary_service as _pc
+        status = _pc.test_connection()
+    else:
+        import services.gee_service as _gee
+        status = _gee.test_connection()
+        status.setdefault("provider", "gee")
     if not status.get("success"):
         raise HTTPException(status_code=500, detail=status.get("message", "GEE check failed"))
     return status

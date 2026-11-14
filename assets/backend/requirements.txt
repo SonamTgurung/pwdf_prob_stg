@@ -25,6 +25,12 @@ requests>=2.32.0
 # handled separately via `earthengine authenticate`, see instructions.html)
 earthengine-api>=0.1.400
 
+# Microsoft Planetary Computer — no-account alternative to Earth Engine for
+# dNBR / water mask (DATA_PROVIDER=planetary, see README.md; the DEM is read
+# from USGS's public tiles with rasterio, no extra package)
+pystac-client>=0.8.0
+planetary-computer>=1.0.0
+
 # USGS Wildcat (post-fire debris-flow assessment) — vendored source in
 # ../wildcat, depends on pfdf which is only published on USGS's package
 # index, not PyPI

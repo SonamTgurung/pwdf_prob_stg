@@ -154,6 +154,7 @@ def start_data_prep(fire_id: str, gee_project: Optional[str] = None) -> Dict[str
     fire = catalog[fire_id]
     if fire["status"] == "ready":
         return {"job_id": None, "fire_id": fire_id, "already_ready": True}
+    get_data_provider(gee_project)  # fail fast (400) on a bad DATA_PROVIDER
 
     job_id = "prep_" + str(uuid.uuid4())[:8]
     _prep_jobs[job_id] = {
@@ -184,11 +185,25 @@ def _upd(job_id: str, step: int, msg: str, pct: int):
     log.info("[%s] step=%d (%d%%) %s", job_id, step, pct, msg)
 
 
+def get_data_provider(gee_project: Optional[str] = None) -> str:
+    """Which data source the prep step uses: "gee" (Google Earth Engine) or
+    "planetary" (Microsoft Planetary Computer, no account needed).
+
+    DATA_PROVIDER=gee|planetary forces one; DATA_PROVIDER=auto (default)
+    picks gee when a GEE project is configured, otherwise planetary."""
+    provider = (os.environ.get("DATA_PROVIDER") or "auto").strip().lower()
+    if provider == "auto":
+        has_project = (gee_project or os.environ.get("GEE_PROJECT_ID") or "").strip()
+        return "gee" if has_project else "planetary"
+    if provider not in ("gee", "planetary"):
+        raise ValueError(
+            f"Unknown DATA_PROVIDER '{provider}'. Use 'auto', 'gee' or 'planetary'."
+        )
+    return provider
+
+
 def _run_prep(job_id: str, fire: Dict, gee_project: Optional[str] = None):
     """Background: fetch perimeter → DEM → dNBR → save to wildcat/<slug>/inputs/."""
-    import ee
-    import services.gee_service as gee_svc
-
     fire_id   = fire["id"]
     fire_name = fire["name"]
     fire_date = fire.get("fire_date", "")
@@ -196,16 +211,30 @@ def _run_prep(job_id: str, fire: Dict, gee_project: Optional[str] = None):
     inp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        provider = get_data_provider(gee_project)
+        log.info("[%s] data provider: %s", job_id, provider)
+
         # ── Step 1: GEE auth ────────────────────────────────────────────────
-        _upd(job_id, 1, "Authenticating with the configured GEE project...", 5)
-        active_project = gee_svc.initialize(gee_project)
-        _upd(job_id, 1, f"Connected to GEE project '{active_project}'.", 8)
+        if provider == "gee":
+            import ee
+            import services.gee_service as gee_svc
+            source = "GEE"
+            _upd(job_id, 1, "Authenticating with the configured GEE project...", 5)
+            active_project = gee_svc.initialize(gee_project)
+            _upd(job_id, 1, f"Connected to GEE project '{active_project}'.", 8)
+        else:
+            import services.planetary_service as pc_svc
+            source = "the USGS National Map"  # DEM source in planetary mode
+            _upd(job_id, 1, "Using Microsoft Planetary Computer (no sign-in needed).", 8)
 
         # ── Step 2: Fetch perimeter from MTBS ──────────────────────────────
         _upd(job_id, 2, f"Fetching {fire_name} perimeter from USFS MTBS...", 12)
         perim_path = _find_existing_perimeter(inp_dir) or (inp_dir / f"{fire_id}_perimeter.shp")
         if not perim_path.exists():
-            perim_gdf = _fetch_mtbs_perimeter(ee, fire_name, fire_date)
+            if provider == "gee":
+                perim_gdf = _fetch_mtbs_perimeter(ee, fire_name, fire_date)
+            else:
+                perim_gdf = pc_svc.fetch_mtbs_perimeter(fire_name, fire_date)
             if perim_gdf is None:
                 raise ValueError(
                     f"Could not find '{fire_name}' in the MTBS burned-area database. "
@@ -236,13 +265,20 @@ def _run_prep(job_id: str, fire: Dict, gee_project: Optional[str] = None):
 
         # ── Step 3: Download DEM ────────────────────────────────────────────
         dem_path = inp_dir / f"{fire_id}_dem_10m.tif"
-        _upd(job_id, 3, "Downloading USGS 3DEP 10m DEM from GEE...", 28)
+        _upd(job_id, 3, f"Downloading USGS 3DEP 10m DEM from {source}...", 28)
         if not dem_path.exists():
-            gee_svc.download_dem_clip(
-                perimeter_gdf=perim_gdf,
-                buffer_m=3000,           # 3 km buffer — matches WildcatSettings default
-                out_path=str(dem_path),
-            )
+            if provider == "gee":
+                gee_svc.download_dem_clip(
+                    perimeter_gdf=perim_gdf,
+                    buffer_m=3000,           # 3 km buffer — matches WildcatSettings default
+                    out_path=str(dem_path),
+                )
+            else:
+                pc_svc.download_dem_clip(
+                    perimeter_gdf=perim_gdf,
+                    buffer_m=3000,           # 3 km buffer — matches WildcatSettings default
+                    out_path=str(dem_path),
+                )
             _upd(job_id, 3,
                  f"✓ DEM saved ({dem_path.stat().st_size/1e6:.1f} MB)", 55)
         else:
@@ -253,12 +289,19 @@ def _run_prep(job_id: str, fire: Dict, gee_project: Optional[str] = None):
         _upd(job_id, 4,
              f"Computing dNBR from Landsat-8/9 pre/post-fire composites...", 58)
         if not dnbr_path.exists():
-            _download_dnbr(
-                ee=ee,
-                perim_gdf=perim_gdf,
-                fire_date=fire_date,
-                out_path=str(dnbr_path),
-            )
+            if provider == "gee":
+                _download_dnbr(
+                    ee=ee,
+                    perim_gdf=perim_gdf,
+                    fire_date=fire_date,
+                    out_path=str(dnbr_path),
+                )
+            else:
+                pc_svc.download_dnbr(
+                    perim_gdf=perim_gdf,
+                    fire_date=fire_date,
+                    out_path=str(dnbr_path),
+                )
             _upd(job_id, 4,
                  f"✓ dNBR saved ({dnbr_path.stat().st_size/1e6:.1f} MB)", 90)
         else:
